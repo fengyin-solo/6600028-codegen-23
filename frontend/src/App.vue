@@ -17,7 +17,7 @@ onMounted(() => {
     <!-- Header -->
     <header class="bg-gray-800 border-b border-gray-700 px-6 py-4">
       <h1 class="text-xl font-bold text-white tracking-wide">流体力学 SPH 粒子模拟器</h1>
-      <p class="text-xs text-gray-500 mt-1">Smoothed Particle Hydrodynamics — 点击画布施加冲量</p>
+      <p class="text-xs text-gray-500 mt-1">Smoothed Particle Hydrodynamics — 点击施加冲量，或切换至「放置扰动器」放置多点持续作用力</p>
     </header>
 
     <!-- Main Content -->

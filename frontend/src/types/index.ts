@@ -29,3 +29,54 @@ export interface Preset {
   particleCount: number;
   initialConfig: 'dam' | 'drop' | 'fountain' | 'wave';
 }
+
+export type DisturberType = 'attract' | 'repel' | 'vortex' | 'jet';
+
+export interface Disturber {
+  id: number;
+  x: number;
+  y: number;
+  type: DisturberType;
+  strength: number;
+  radius: number;
+  angle: number;
+  enabled: boolean;
+  label: string;
+}
+
+export interface DisturberTypeMeta {
+  type: DisturberType;
+  label: string;
+  description: string;
+  color: string;
+}
+
+export type InteractionMode = 'impulse' | 'place';
+
+export interface DisturberComboPreset {
+  id: string;
+  name: string;
+  label: string;
+  description: string;
+  icon: string;
+  builders: DisturberTemplate[];
+}
+
+export interface DisturberTemplate {
+  type: DisturberType;
+  xRatio: number;
+  yRatio: number;
+  strength?: number;
+  radius?: number;
+  angle?: number;
+  enabled?: boolean;
+  labelSuffix?: string;
+}
+
+export interface VisualOptions {
+  showForceVectors: boolean;
+  showPulseEffect: boolean;
+  showGlowEffect: boolean;
+  forceVectorScale: number;
+  forceVectorStep: number;
+}

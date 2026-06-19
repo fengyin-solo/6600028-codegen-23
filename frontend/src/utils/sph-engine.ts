@@ -1,4 +1,4 @@
-import type { Particle, SimParams, Preset } from '../types'
+import type { Particle, SimParams, Preset, Disturber, DisturberTypeMeta, DisturberComboPreset } from '../types'
 
 export const DEFAULT_PARAMS: SimParams = {
   gravity: 9.8,
@@ -47,6 +47,101 @@ export const PRESETS: Preset[] = [
   },
 ]
 
+export const DISTURBER_TYPES: DisturberTypeMeta[] = [
+  {
+    type: 'attract',
+    label: '吸引',
+    description: '持续将周围粒子拉向作用点，形成汇聚漩流',
+    color: '#38bdf8',
+  },
+  {
+    type: 'repel',
+    label: '排斥',
+    description: '持续将周围粒子推开，形成空洞与扩散',
+    color: '#f87171',
+  },
+  {
+    type: 'vortex',
+    label: '漩涡',
+    description: '施加切向力，使粒子环绕作用点旋转',
+    color: '#a78bfa',
+  },
+  {
+    type: 'jet',
+    label: '喷射',
+    description: '沿固定方向持续推动粒子，形成定向气流',
+    color: '#34d399',
+  },
+]
+
+export const DISTURBER_DEFAULTS = {
+  strength: 160,
+  radius: 95,
+  angle: -Math.PI / 2,
+}
+
+export const DISTURBER_COMBO_PRESETS: DisturberComboPreset[] = [
+  {
+    id: 'dual-vortex',
+    name: 'dual-vortex',
+    label: '双漩涡对冲',
+    description: '两个反向旋转漩涡，中间形成剧烈剪切流，观察涡旋相互吞噬',
+    icon: '🌀',
+    builders: [
+      { type: 'vortex', xRatio: 0.35, yRatio: 0.5, strength: 200, radius: 110, labelSuffix: '左' },
+      { type: 'vortex', xRatio: 0.65, yRatio: 0.5, strength: -200, radius: 110, labelSuffix: '右' },
+    ],
+  },
+  {
+    id: 'attract-repel',
+    name: 'attract-repel',
+    label: '吸引排斥联动',
+    description: '上方吸引下方排斥，形成循环对流，模拟热对流效果',
+    icon: '🔄',
+    builders: [
+      { type: 'attract', xRatio: 0.5, yRatio: 0.25, strength: 180, radius: 120, labelSuffix: '上吸' },
+      { type: 'repel', xRatio: 0.5, yRatio: 0.75, strength: 180, radius: 120, labelSuffix: '下排' },
+    ],
+  },
+  {
+    id: 'corner-storm',
+    name: 'corner-storm',
+    label: '四角风暴',
+    description: '四角放置漩涡，中心形成低压汇聚区，复杂流场干涉',
+    icon: '🌪️',
+    builders: [
+      { type: 'vortex', xRatio: 0.2, yRatio: 0.2, strength: 180, radius: 90, labelSuffix: '左上' },
+      { type: 'vortex', xRatio: 0.8, yRatio: 0.2, strength: -180, radius: 90, labelSuffix: '右上' },
+      { type: 'vortex', xRatio: 0.2, yRatio: 0.8, strength: -180, radius: 90, labelSuffix: '左下' },
+      { type: 'vortex', xRatio: 0.8, yRatio: 0.8, strength: 180, radius: 90, labelSuffix: '右下' },
+    ],
+  },
+  {
+    id: 'wind-tunnel',
+    name: 'wind-tunnel',
+    label: '风洞实验',
+    description: '左侧喷射右侧吸引，中间放置障碍物漩涡，观察绕流',
+    icon: '💨',
+    builders: [
+      { type: 'jet', xRatio: 0.08, yRatio: 0.5, strength: 250, radius: 100, angle: 0, labelSuffix: '左喷' },
+      { type: 'attract', xRatio: 0.92, yRatio: 0.5, strength: 200, radius: 110, labelSuffix: '右吸' },
+      { type: 'vortex', xRatio: 0.5, yRatio: 0.5, strength: 150, radius: 70, labelSuffix: '障碍' },
+    ],
+  },
+  {
+    id: 'triple-jets',
+    name: 'triple-jets',
+    label: '三喷交汇',
+    description: '三股喷射从不同方向交汇，中心观察碰撞扩散效果',
+    icon: '🎯',
+    builders: [
+      { type: 'jet', xRatio: 0.1, yRatio: 0.85, strength: 200, radius: 80, angle: -Math.PI * 0.75, labelSuffix: '左下' },
+      { type: 'jet', xRatio: 0.9, yRatio: 0.85, strength: 200, radius: 80, angle: -Math.PI * 0.25, labelSuffix: '右下' },
+      { type: 'jet', xRatio: 0.5, yRatio: 0.08, strength: 200, radius: 80, angle: Math.PI * 0.5, labelSuffix: '上' },
+    ],
+  },
+]
+
 // SPH Kernel constants
 const PI = Math.PI
 
@@ -78,6 +173,7 @@ export class SPHEngine {
   params: SimParams
   width: number
   height: number
+  disturbers: Disturber[] = []
   private grid: Map<number, number[]> = new Map()
   private cellSize: number = 0
 
@@ -88,8 +184,16 @@ export class SPHEngine {
     this.cellSize = this.params.smoothingRadius
   }
 
+  setDisturbers(list: Disturber[]) {
+    this.disturbers = list
+  }
+
+  setCellSize(value: number) {
+    this.cellSize = value
+  }
+
   initParticles(config: 'dam' | 'drop' | 'fountain' | 'wave', count?: number) {
-    const n = count ?? this.particles.length || 800
+    const n = count ?? (this.particles.length || 800)
     this.particles = []
 
     switch (config) {
@@ -281,6 +385,8 @@ export class SPHEngine {
       pi.fy = fpy + fvy + pi.density * gravity * 10  // gravity scaled
     }
 
+    this.applyDisturbers()
+
     // Step 7: Update velocity + position (Symplectic Euler)
     for (let i = 0; i < n; i++) {
       const p = this.particles[i]
@@ -322,6 +428,49 @@ export class SPHEngine {
         const factor = strength * (1 - dist / radius)
         p.vx += (dx / dist) * factor
         p.vy += (dy / dist) * factor
+      }
+    }
+  }
+
+  private applyDisturbers() {
+    const list = this.disturbers
+    if (list.length === 0) return
+    const particles = this.particles
+    for (let d = 0; d < list.length; d++) {
+      const dis = list[d]
+      if (!dis.enabled) continue
+      const R = dis.radius
+      const R2 = R * R
+      const strength = dis.strength
+      const cosA = Math.cos(dis.angle)
+      const sinA = Math.sin(dis.angle)
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i]
+        const dx = p.x - dis.x
+        const dy = p.y - dis.y
+        const dist2 = dx * dx + dy * dy
+        if (dist2 >= R2 || dist2 < 1e-6) continue
+        const dist = Math.sqrt(dist2)
+        const falloff = 1 - dist / R
+        const f = strength * falloff * p.density
+        switch (dis.type) {
+          case 'attract':
+            p.fx -= f * dx / dist
+            p.fy -= f * dy / dist
+            break
+          case 'repel':
+            p.fx += f * dx / dist
+            p.fy += f * dy / dist
+            break
+          case 'vortex':
+            p.fx -= f * dy / dist
+            p.fy += f * dx / dist
+            break
+          case 'jet':
+            p.fx += f * cosA
+            p.fy += f * sinA
+            break
+        }
       }
     }
   }
